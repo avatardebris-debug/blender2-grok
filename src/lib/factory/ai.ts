@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { AssetSpec, Engine, Family, Style } from "./types";
+import type { AssetSpec, Bind, Engine, Family, Rig, Style } from "./types";
+import { isWardrobe } from "./types";
 
 function getApiKey() {
   return process.env["XAI_API_KEY"]?.trim() || undefined;
@@ -15,6 +16,8 @@ type BriefInput = {
   style: Style;
   engine: Engine;
   polyTarget: number;
+  rig?: Rig;
+  bind?: Bind;
 };
 
 export const millBrief = createServerFn({ method: "POST" })
@@ -23,6 +26,7 @@ export const millBrief = createServerFn({ method: "POST" })
     const apiKey = getApiKey();
     if (!apiKey) return { ok: false as const, error: "AI is not available" };
 
+    const wardrobe = isWardrobe(data.family);
     const res = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -38,8 +42,23 @@ export const millBrief = createServerFn({ method: "POST" })
             role: "system",
             content: `You are the brief mill of CRUCIBLE, an AI 3D asset factory.
 Return ONLY compact JSON, no markdown, matching:
-{"objectName":"SM_StyleFamily_01","displayName":"short title","scaleMeters":[x,y,z],"polyTarget":1800,"materials":[{"name":"Pascal_Case","hex":"#rrggbb","metal":0.2,"rough":0.5}],"notes":"one sentence","qc":["origin bottom center","1u=1m"]}
-Rules: Unreal-style SM_ names. Scale in meters, plausible for the object (a crate is ~1m, a sword is thin). 2 materials. Hex is 6-digit. Family is locked. Do not write Python.`,
+{"objectName":"${wardrobe ? "SK" : "SM"}_StyleFamily_01","displayName":"short title","scaleMeters":[x,y,z],"polyTarget":1800,"materials":[{"name":"Pascal_Case","hex":"#rrggbb","metal":0.2,"rough":0.5}],"notes":"one sentence","qc":[${wardrobe ? `"origin armature root","T-pose ${data.rig ?? "mixamo"} bind"` : `"origin bottom center","1u=1m"`}]}
+Rules:
+- Family is locked. Do not write Python.
+- Hex is 6-digit. 2 materials.
+${
+  wardrobe
+    ? `- WARDROBE job. objectName MUST start with SK_.
+- scaleMeters is the garment hull on a 1.80m T-pose mannequin.
+- Origin is armature root between the feet, never the garment AABB.
+- Animator rig is ${data.rig ?? "mixamo"}. Bind is ${data.bind ?? "skinned"}.
+- If bind is skinned: EveryWear path, copy body weights, max 4 influences (8 for Unreal). Notes mention T-pose and weight transfer.
+- If bind is cache: Marvelous animation sim, Alembic geometry cache, do not skin. Notes say that.
+- Do not mill clothing in empty space.`
+    : `- PROP job. objectName MUST start with SM_.
+- Scale in meters, plausible for the object (a crate is ~1m, a sword is thin).
+- Origin at the contact patch.`
+}`,
           },
           {
             role: "user",
@@ -48,7 +67,9 @@ prompt: ${data.prompt}
 family: ${data.family}
 style: ${data.style}
 engine: ${data.engine}
-polyTarget: ${data.polyTarget}`,
+polyTarget: ${data.polyTarget}
+rig: ${data.rig ?? "none"}
+bind: ${data.bind ?? "none"}`,
           },
         ],
       }),

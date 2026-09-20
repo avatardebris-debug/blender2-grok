@@ -4,9 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/input";
 import { buildBpy, downloadText } from "@/lib/factory/bpy";
-import { KITS, POLY_DEFAULT } from "@/lib/factory/spec";
+import { kitsFor, POLY_DEFAULT } from "@/lib/factory/spec";
 import { useFactory } from "@/lib/factory/store";
-import { ENGINES, FAMILIES, STAGES, STYLES, type Job, type Stage } from "@/lib/factory/types";
+import {
+  BINDS,
+  ENGINES,
+  FAMILIES,
+  LINES,
+  RIGS,
+  STAGES,
+  STYLES,
+  isWardrobe,
+  type Bind,
+  type Family,
+  type Job,
+  type Rig,
+  type Stage,
+} from "@/lib/factory/types";
 import { cn } from "@/lib/utils";
 
 export function IntakePanel() {
@@ -19,6 +33,10 @@ export function IntakePanel() {
   const setUseGrok = useFactory((s) => s.setUseGrok);
   const grokAvailable = useFactory((s) => s.grokAvailable);
 
+  const line = isWardrobe(intake.family) ? "wardrobe" : "prop";
+  const families = FAMILIES.filter((f) => f.line === line);
+  const kits = kitsFor(line);
+
   return (
     <div className="flex h-full flex-col gap-5 p-5">
       <div>
@@ -26,24 +44,54 @@ export function IntakePanel() {
         <h2 className="mt-1 font-display text-2xl font-semibold tracking-tight text-fg">Brief the mill</h2>
       </div>
 
+      <fieldset className="grid gap-2">
+        <legend className="text-xs font-medium text-muted">Line</legend>
+        <div className="grid grid-cols-2 gap-1.5">
+          {LINES.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => {
+                if (l.id === line) return;
+                const next = FAMILIES.find((f) => f.line === l.id)!.id;
+                setIntake({ family: next, polyTarget: POLY_DEFAULT[next] });
+              }}
+              className={cn(
+                "rounded-sm px-2.5 py-2 text-left text-sm transition-colors duration-150",
+                line === l.id ? "bg-primary text-primary-fg" : "bg-raised text-fg hover:bg-surface",
+              )}
+            >
+              <span className="block font-medium leading-tight">{l.label}</span>
+              <span className={cn("block text-[11px] leading-tight", line === l.id ? "text-primary-fg/70" : "text-muted")}>
+                {l.hint}
+              </span>
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
       <label className="grid gap-1.5">
         <span className="text-xs font-medium text-muted">What to mill</span>
         <Textarea
           value={intake.prompt}
           onChange={(e) => setIntake({ prompt: e.target.value })}
           rows={3}
-          placeholder="Armored crate, latches, corner feet"
+          placeholder={
+            line === "wardrobe"
+              ? "Wool travel cloak with a brass clasp"
+              : "Armored crate, latches, corner feet"
+          }
         />
       </label>
 
       <fieldset className="grid gap-2">
         <legend className="text-xs font-medium text-muted">Family</legend>
         <div className="grid grid-cols-2 gap-1.5">
-          {FAMILIES.map((f) => (
+          {families.map((f) => (
             <button
               key={f.id}
               type="button"
-              onClick={() => setIntake({ family: f.id, polyTarget: POLY_DEFAULT[f.id] })}
+              onClick={() => setIntake({ family: f.id as Family, polyTarget: POLY_DEFAULT[f.id] })}
               className={cn(
                 "rounded-sm px-2.5 py-2 text-left text-sm transition-colors duration-150",
                 intake.family === f.id ? "bg-primary text-primary-fg" : "bg-raised text-fg hover:bg-surface",
@@ -87,6 +135,46 @@ export function IntakePanel() {
           ))}
         </select>
       </label>
+
+      {line === "wardrobe" && (
+        <>
+          <label className="grid gap-1.5">
+            <span className="text-xs font-medium text-muted">Animator rig</span>
+            <select
+              value={intake.rig}
+              onChange={(e) => setIntake({ rig: e.target.value as Rig })}
+              className="h-11 rounded-md bg-raised px-3 text-sm text-fg shadow-[var(--shadow-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg/40"
+            >
+              {RIGS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label} · {s.hint}
+                </option>
+              ))}
+            </select>
+          </label>
+          <fieldset className="grid gap-2">
+            <legend className="text-xs font-medium text-muted">Bind</legend>
+            <div className="grid grid-cols-2 gap-1.5">
+              {BINDS.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setIntake({ bind: b.id as Bind })}
+                  className={cn(
+                    "rounded-sm px-2.5 py-2 text-left text-sm transition-colors duration-150",
+                    intake.bind === b.id ? "bg-primary text-primary-fg" : "bg-raised text-fg hover:bg-surface",
+                  )}
+                >
+                  <span className="block font-medium leading-tight">{b.label}</span>
+                  <span className={cn("block text-[11px] leading-tight", intake.bind === b.id ? "text-primary-fg/70" : "text-muted")}>
+                    {b.hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        </>
+      )}
 
       <label className="grid gap-1.5">
         <div className="flex items-center justify-between text-xs font-medium text-muted">
@@ -143,7 +231,7 @@ export function IntakePanel() {
 
       <div className="grid gap-2">
         <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">Kits</p>
-        {KITS.map((kit) => (
+        {kits.map((kit) => (
           <button
             key={kit.id}
             type="button"
@@ -212,6 +300,7 @@ export function Dock({ job }: { job: Job | null }) {
   const catalog = useFactory((s) => s.catalog);
   const inspectCatalog = useFactory((s) => s.inspectCatalog);
   const spec = job?.spec ?? null;
+  const wardrobe = spec ? isWardrobe(spec.family) : false;
 
   return (
     <div className="flex h-full flex-col">
@@ -230,6 +319,13 @@ export function Dock({ job }: { job: Job | null }) {
           <>
             <p className="text-sm text-muted">{spec.displayName}</p>
             <p className="text-sm">{spec.notes}</p>
+            {wardrobe && (
+              <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
+                {spec.bind === "cache"
+                  ? "Marvelous cache · Alembic · not skinned"
+                  : `Fitted · T-pose · ${spec.rig ?? "mixamo"} · SK_`}
+              </p>
+            )}
 
             <div className="grid grid-cols-3 gap-2">
               <Stat label="Tris" value={job?.stats?.tris ? job.stats.tris.toLocaleString() : "—"} />
@@ -301,8 +397,7 @@ export function Dock({ job }: { job: Job | null }) {
           </>
         ) : (
           <p className="text-sm text-muted">
-            Stamp a ticket on the left. The mill locks a spec, builds the mesh in stations, then hands you a Blender
-            Python packet.
+            Stamp a ticket on the left. Props sit on the floor. Wardrobe is fitted to the 180cm jig.
           </p>
         )}
 

@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { millBrief } from "./ai";
 import { buildLocalSpec, estimateStats, mergeAiSpec, POLY_DEFAULT, runQc, starterCatalog } from "./spec";
-import type { CatalogItem, Engine, Family, Job, KitTicket, MeshStats, Stage, Style } from "./types";
+import type { Bind, CatalogItem, Engine, Family, Job, KitTicket, MeshStats, Rig, Stage, Style } from "./types";
+import { isWardrobe } from "./types";
 
 const STAGE_MS: Record<Exclude<Stage, "queued" | "done" | "failed">, number> = {
   brief: 280,
@@ -19,6 +20,8 @@ type Intake = {
   style: Style;
   engine: Engine;
   polyTarget: number;
+  rig: Rig;
+  bind: Bind;
 };
 
 type FactoryState = {
@@ -58,6 +61,8 @@ export const useFactory = create<FactoryState>()(
         style: "hard-surface",
         engine: "godot",
         polyTarget: 1800,
+        rig: "mixamo",
+        bind: "skinned",
       },
       useGrok: true,
       grokAvailable: false,
@@ -92,6 +97,8 @@ export const useFactory = create<FactoryState>()(
           stats: null,
           qc: [],
           source: "local",
+          rig: intake.rig,
+          bind: intake.bind,
         };
         set((s) => ({ jobs: [job, ...s.jobs], activeId: s.activeId ?? job.id }));
         queueMicrotask(() => get().millNext());
@@ -160,6 +167,8 @@ export const useFactory = create<FactoryState>()(
           stats: item.stats,
           qc: runQc(item.spec, item.stats),
           source: item.source,
+          rig: item.spec.rig,
+          bind: item.spec.bind,
         };
         set((s) => ({ jobs: [job, ...s.jobs.filter((j) => j.id !== item.id)], activeId: item.id }));
       },
@@ -172,7 +181,7 @@ export const useFactory = create<FactoryState>()(
         })),
     }),
     {
-      name: "crucible-v1",
+      name: "crucible-v3",
       skipHydration: true,
       partialize: (s) => ({
         catalog: s.catalog,
@@ -217,6 +226,8 @@ async function runMill(
       style: job.style,
       engine: job.engine,
       polyTarget: job.polyTarget,
+      rig: job.rig,
+      bind: job.bind,
     });
 
     let spec = local;
@@ -230,6 +241,8 @@ async function runMill(
             style: job.style,
             engine: job.engine,
             polyTarget: job.polyTarget,
+            rig: job.rig,
+            bind: job.bind,
           },
         });
         if (res.ok) {
@@ -248,11 +261,18 @@ async function runMill(
 
     for (const stage of ["blockout", "mesh", "material", "qc", "export"] as const) {
       await sleep(STAGE_MS[stage]);
+      const wardrobe = isWardrobe(spec.family);
       const messages: Record<typeof stage, string> = {
-        blockout: `Hull ${spec.scaleMeters.map((n) => n.toFixed(2)).join(" × ")} m`,
-        mesh: "Bevels, hardware, boolean details",
+        blockout: wardrobe
+          ? `Fit hull ${spec.scaleMeters.map((n) => n.toFixed(2)).join(" × ")} m on 180cm jig`
+          : `Hull ${spec.scaleMeters.map((n) => n.toFixed(2)).join(" × ")} m`,
+        mesh: wardrobe
+          ? spec.bind === "cache"
+            ? "Marvelous sim · Alembic cache"
+            : `EveryWear bind · ${spec.rig ?? "mixamo"}`
+          : "Bevels, hardware, boolean details",
         material: spec.materials.map((m) => m.name).join(" / "),
-        qc: "Origin · naming · poly · materials",
+        qc: wardrobe ? `Fit · SK_ · ${spec.rig ?? "mixamo"} · T-pose` : "Origin · naming · poly · materials",
         export: "Packet ready · bpy + spec JSON",
       };
       advance(stage, messages[stage]);

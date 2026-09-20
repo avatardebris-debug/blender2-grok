@@ -6,7 +6,7 @@ This is the Grok Build control plane for [avatardebris-debug/blender2-grok](http
 
 ## What it does
 
-- **Tickets** — family, style, engine packet, poly budget
+- **Tickets** — family, style, engine packet, poly budget. Two lines: **props** (floor objects) and **wardrobe** (shirt, pants, cloak, armor, boots on a 180cm T-pose jig). Wardrobe binds Mixamo / UE5 / MetaHuman, skinned or Alembic cache.
 - **Brief mill** — Grok locks a spec (`SM_` name, meters, PBR slots) or a local mill fills it
 - **Preview plate** — parametric Three.js mesh, station-by-station
 - **QC gate** — naming, origin, scale, poly vs budget, material count
@@ -37,7 +37,7 @@ blender --background --python SM_HardCrate_12.py
 1. Do not let the model freehand `bpy` as the primary path — templates + params.
 2. One asset per process. Kits are a queue.
 3. Spec wins over the reference image.
-4. Origin bottom-center, 1u = 1m, `SM_` names, ≤3 materials, transforms applied.
+4. Props: origin bottom-center, `SM_` names. Wardrobe: origin at armature root, `SK_` names, fitted to the 180cm mannequin. 1u = 1m, ≤3 materials, transforms applied.
 5. Screenshot after every mutation when a live Blender MCP is wired.
 6. Cheapest asset is one you do not generate.
 

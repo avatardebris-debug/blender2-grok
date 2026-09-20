@@ -1,15 +1,54 @@
+export const LINES = [
+  { id: "prop", label: "Props", hint: "Floor objects" },
+  { id: "wardrobe", label: "Wardrobe", hint: "Fitted to a body" },
+] as const;
+
+export type Line = (typeof LINES)[number]["id"];
+
 export const FAMILIES = [
-  { id: "crate", label: "Crate", hint: "Boxes, lids, straps" },
-  { id: "barrel", label: "Barrel", hint: "Drums, tanks, casks" },
-  { id: "weapon", label: "Weapon", hint: "Blades, tools, guns" },
-  { id: "module", label: "Module", hint: "Sci-fi hard-surface" },
-  { id: "furniture", label: "Furniture", hint: "Chairs, tables, stools" },
-  { id: "environment", label: "Environment", hint: "Walls, floors, kits" },
-  { id: "organic", label: "Organic", hint: "Rocks, trees, debris" },
-  { id: "machine", label: "Machine", hint: "Valves, pumps, gears" },
+  { id: "crate", label: "Crate", hint: "Boxes, lids, straps", line: "prop" },
+  { id: "barrel", label: "Barrel", hint: "Drums, tanks, casks", line: "prop" },
+  { id: "weapon", label: "Weapon", hint: "Blades, tools, guns", line: "prop" },
+  { id: "module", label: "Module", hint: "Sci-fi hard-surface", line: "prop" },
+  { id: "furniture", label: "Furniture", hint: "Chairs, tables, stools", line: "prop" },
+  { id: "environment", label: "Environment", hint: "Walls, floors, kits", line: "prop" },
+  { id: "organic", label: "Organic", hint: "Rocks, trees, debris", line: "prop" },
+  { id: "machine", label: "Machine", hint: "Valves, pumps, gears", line: "prop" },
+  { id: "shirt", label: "Shirt", hint: "Tunics, jackets, vests", line: "wardrobe" },
+  { id: "pants", label: "Pants", hint: "Trousers, hose, greaves", line: "wardrobe" },
+  { id: "cloak", label: "Cloak", hint: "Capes, hoods, robes", line: "wardrobe" },
+  { id: "armor", label: "Armor", hint: "Chest, helm, pauldrons", line: "wardrobe" },
+  { id: "boots", label: "Boots", hint: "Shoes, sabatons, pair", line: "wardrobe" },
 ] as const;
 
 export type Family = (typeof FAMILIES)[number]["id"];
+
+export function familyMeta(id: Family) {
+  return FAMILIES.find((f) => f.id === id)!;
+}
+
+export function isWardrobe(family: Family) {
+  return familyMeta(family).line === "wardrobe";
+}
+
+export function namePrefix(family: Family) {
+  return isWardrobe(family) ? "SK_" : "SM_";
+}
+
+export const RIGS = [
+  { id: "mixamo", label: "Mixamo", hint: "mixamorig:* · T-pose" },
+  { id: "ue5", label: "UE5 mannequin", hint: "pelvis / spine_01" },
+  { id: "metahuman", label: "MetaHuman", hint: "EveryWear · Chaos" },
+] as const;
+
+export type Rig = (typeof RIGS)[number]["id"];
+
+export const BINDS = [
+  { id: "skinned", label: "Skinned", hint: "Game · SK_ weights" },
+  { id: "cache", label: "Cache", hint: "Alembic · cinematic" },
+] as const;
+
+export type Bind = (typeof BINDS)[number]["id"];
 
 export const STYLES = [
   { id: "hard-surface", label: "Hard surface" },
@@ -24,7 +63,7 @@ export type Style = (typeof STYLES)[number]["id"];
 export const ENGINES = [
   { id: "godot", label: "Godot", format: "GLB", note: "meters, +Y up" },
   { id: "unity", label: "Unity", format: "FBX / GLB", note: "meters" },
-  { id: "unreal", label: "Unreal", format: "FBX", note: "cm, SM_ prefix" },
+  { id: "unreal", label: "Unreal", format: "FBX", note: "cm, SK_/SM_" },
   { id: "web", label: "Web / glTF", format: "GLB", note: "meters, Draco" },
 ] as const;
 
@@ -53,6 +92,19 @@ export const ACTIVE_STAGES: Stage[] = [
   "export",
 ];
 
+/** 180cm bind-pose jig. Y-up landmarks in meters. */
+export const MANNEQUIN = {
+  height: 1.8,
+  headY: 1.68,
+  shoulderY: 1.42,
+  chestY: 1.22,
+  hipY: 0.94,
+  kneeY: 0.48,
+  ankleY: 0.1,
+  shoulderX: 0.2,
+  hipX: 0.09,
+} as const;
+
 export type MaterialSlot = {
   name: string;
   hex: string;
@@ -72,6 +124,8 @@ export type AssetSpec = {
   materials: MaterialSlot[];
   notes: string;
   qc: string[];
+  rig?: Rig;
+  bind?: Bind;
 };
 
 export type MeshStats = {
@@ -107,6 +161,8 @@ export type Job = {
   stats: MeshStats | null;
   qc: QcCheck[];
   source: "local" | "grok";
+  rig?: Rig;
+  bind?: Bind;
 };
 
 export type CatalogItem = {
@@ -123,6 +179,7 @@ export type KitTicket = {
   id: string;
   name: string;
   blurb: string;
+  line: Line;
   jobs: Array<{
     prompt: string;
     family: Family;

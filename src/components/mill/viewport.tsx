@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { ContactShadows, Grid, OrbitControls } from "@react-three/drei";
 import { useEffect, useState } from "react";
 import { AssetMesh } from "./asset-mesh";
+import { isWardrobe } from "@/lib/factory/types";
 import type { AssetSpec, MeshStats, Stage } from "@/lib/factory/types";
 
 export function MillViewport({
@@ -24,10 +25,18 @@ export function MillViewport({
     );
   }
 
+  const wardrobe = spec ? isWardrobe(spec.family) : false;
+
   return (
     <div className="relative h-full min-h-[280px] touch-none bg-bg">
       <Canvas
-        camera={{ position: [2.6, 1.7, 2.8], fov: 38, near: 0.05, far: 40 }}
+        key={wardrobe ? "wardrobe" : "prop"}
+        camera={{
+          position: wardrobe ? [2.8, 1.55, 3.6] : [2.6, 1.7, 2.8],
+          fov: 38,
+          near: 0.05,
+          far: 40,
+        }}
         dpr={[1, 2]}
         shadows="percentage"
         gl={{ antialias: true, alpha: false }}
@@ -70,9 +79,9 @@ export function MillViewport({
           enablePan={false}
           minPolarAngle={0.25}
           maxPolarAngle={1.42}
-          minDistance={1.4}
-          maxDistance={8}
-          target={[0, 0.45, 0]}
+          minDistance={wardrobe ? 1.8 : 1.4}
+          maxDistance={10}
+          target={wardrobe ? [0, 0.92, 0] : [0, 0.45, 0]}
         />
       </Canvas>
     </div>

@@ -5,6 +5,7 @@ import { ShellHeader } from "@/components/mill/shell";
 import { MillViewportHost } from "@/components/mill/viewport-host";
 import { grokStatus } from "@/lib/factory/ai";
 import { useFactory } from "@/lib/factory/store";
+import { isWardrobe } from "@/lib/factory/types";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -53,7 +54,13 @@ function Home() {
               }}
             />
             <div className="pointer-events-none absolute left-4 top-3">
-              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">Mill plate</p>
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
+                {job?.spec && isWardrobe(job.spec.family)
+                  ? job.spec.bind === "cache"
+                    ? "Wardrobe · MD cache"
+                    : `Wardrobe · ${job.spec.rig ?? "mixamo"} bind`
+                  : "Mill plate"}
+              </p>
               <p className="font-display text-2xl font-semibold tracking-tight">
                 {job?.spec?.displayName ?? "Idle"}
               </p>

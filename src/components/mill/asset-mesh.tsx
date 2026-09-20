@@ -2,7 +2,8 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { stageIndex } from "@/lib/factory/spec";
-import type { AssetSpec, MeshStats, Stage } from "@/lib/factory/types";
+import { isWardrobe, type AssetSpec, type MeshStats, type Stage } from "@/lib/factory/types";
+import { Skeleton, TPoseMannequin } from "./wardrobe-rig";
 
 type Props = {
   spec: AssetSpec;
@@ -25,9 +26,11 @@ function useMat(hex: string, metal: number, rough: number, wire: boolean) {
 
 export function AssetMesh({ spec, stage, onStats }: Props) {
   const group = useRef<THREE.Group>(null);
+  const clock = useRef(0);
   const reveal = stageIndex(stage);
   const wire = reveal < 3;
   const showMats = reveal >= 4;
+  const wardrobe = isWardrobe(spec.family);
   const m0 = spec.materials[0] ?? { hex: "#7a8088", metal: 0.4, rough: 0.5, name: "A" };
   const m1 = spec.materials[1] ?? m0;
   const body = useMat(showMats ? m0.hex : "#9a9c9f", showMats ? m0.metal : 0.2, showMats ? m0.rough : 0.7, wire);
@@ -40,18 +43,31 @@ export function AssetMesh({ spec, stage, onStats }: Props) {
 
   useFrame((_, delta) => {
     const d = Math.min(delta, 0.1);
-    if (group.current) group.current.rotation.y += d * 0.28;
+    clock.current += d;
+    const live = wardrobe && reveal >= 5 && spec.bind !== "cache";
+    const s = live ? Math.sin(clock.current * 1.6) * 0.55 : 0;
+    if (group.current) {
+      group.current.rotation.y += d * (wardrobe ? 0.12 : 0.28);
+      if (wardrobe) {
+        group.current.traverse((c) => {
+          if (c.name === "BindArmL" || c.name === "BindSkelArmL") c.rotation.z = s;
+          if (c.name === "BindArmR" || c.name === "BindSkelArmR") c.rotation.z = -s;
+          if (c.name === "BindLegL" || c.name === "BindSkelLegL") c.rotation.x = s * 0.35;
+          if (c.name === "BindLegR" || c.name === "BindSkelLegR") c.rotation.x = -s * 0.35;
+        });
+      }
+    }
     if (!group.current || !onStatsRef.current) return;
     if (countedKey.current === statsKey) return;
     let tris = 0;
     let verts = 0;
     group.current.traverse((c) => {
-      if (c instanceof THREE.Mesh) {
-        const g = c.geometry;
-        const v = g.attributes.position?.count ?? 0;
-        verts += v;
-        tris += g.index ? g.index.count / 3 : v / 3;
-      }
+      if (!(c instanceof THREE.Mesh)) return;
+      if (c.name.startsWith("Jig")) return;
+      const g = c.geometry;
+      const v = g.attributes.position?.count ?? 0;
+      verts += v;
+      tris += g.index ? g.index.count / 3 : v / 3;
     });
     if (tris <= 0) return;
     countedKey.current = statsKey;
@@ -71,6 +87,8 @@ export function AssetMesh({ spec, stage, onStats }: Props) {
 
   return (
     <group ref={group}>
+      {wardrobe && <TPoseMannequin />}
+      {wardrobe && <Skeleton visible={reveal >= 3} />}
       <FamilyMesh family={spec.family} spec={spec} body={body} trim={trim} reveal={reveal} />
     </group>
   );
@@ -273,6 +291,144 @@ function FamilyMesh({
               </mesh>
             </>
           )}
+        </group>
+      );
+    case "shirt":
+      return (
+        <group>
+          <mesh material={body} position={[0, 1.18, 0]} castShadow>
+            <boxGeometry args={[sx, sy * 0.76, sz]} />
+          </mesh>
+          {detail && (
+            <>
+              <group name="BindArmL" position={[0.18, 1.42, 0]}>
+                <mesh material={body} position={[0.24, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+                  <cylinderGeometry args={[sz * 0.2, sz * 0.18, sy * 0.5, 14]} />
+                </mesh>
+              </group>
+              <group name="BindArmR" position={[-0.18, 1.42, 0]}>
+                <mesh material={body} position={[-0.24, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+                  <cylinderGeometry args={[sz * 0.2, sz * 0.18, sy * 0.5, 14]} />
+                </mesh>
+              </group>
+              <mesh material={trim} position={[0, 1.48, 0]} castShadow>
+                <cylinderGeometry args={[sz * 0.22, sz * 0.22, 0.05, 16]} />
+              </mesh>
+            </>
+          )}
+        </group>
+      );
+    case "pants":
+      return (
+        <group>
+          <mesh material={body} position={[0, 0.96, 0]} castShadow>
+            <boxGeometry args={[sx, 0.16, sz]} />
+          </mesh>
+          <group name="BindLegL" position={[0.09, 0.94, 0]}>
+            <mesh material={body} position={[0, -0.42, 0]} castShadow>
+              <cylinderGeometry args={[sx * 0.22, sx * 0.2, sy * 0.72, 16]} />
+            </mesh>
+          </group>
+          <group name="BindLegR" position={[-0.09, 0.94, 0]}>
+            <mesh material={body} position={[0, -0.42, 0]} castShadow>
+              <cylinderGeometry args={[sx * 0.22, sx * 0.2, sy * 0.72, 16]} />
+            </mesh>
+          </group>
+          {detail && (
+            <mesh material={trim} position={[0, 1.02, 0]} castShadow>
+              <boxGeometry args={[sx + 0.02, 0.05, sz + 0.02]} />
+            </mesh>
+          )}
+        </group>
+      );
+    case "cloak":
+      return (
+        <group>
+          <mesh material={body} position={[0, 0.82, -0.16]} rotation={[0.12, 0, 0]} castShadow>
+            <boxGeometry args={[sx, sy * 0.84, 0.07]} />
+          </mesh>
+          {detail && (
+            <>
+              <mesh material={body} position={[-0.16, 0.86, -0.12]} rotation={[0.1, 0, 0.18]} castShadow>
+                <boxGeometry args={[sx * 0.45, sy * 0.72, 0.05]} />
+              </mesh>
+              <mesh material={body} position={[0.16, 0.86, -0.12]} rotation={[0.1, 0, -0.18]} castShadow>
+                <boxGeometry args={[sx * 0.45, sy * 0.72, 0.05]} />
+              </mesh>
+              <mesh material={body} position={[0, 1.58, -0.04]} scale={[1.05, 0.72, 0.85]} castShadow>
+                <sphereGeometry args={[0.14, 14, 10]} />
+              </mesh>
+              <mesh material={trim} position={[0, 1.46, 0.02]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+                <torusGeometry args={[0.07, 0.016, 8, 16]} />
+              </mesh>
+            </>
+          )}
+        </group>
+      );
+    case "armor":
+      return (
+        <group>
+          <mesh material={body} position={[0, 1.22, 0.04]} castShadow>
+            <boxGeometry args={[sx, sy * 0.56, sz * 0.55]} />
+          </mesh>
+          {detail && (
+            <>
+              <group name="BindArmL" position={[0.22, 1.42, 0.02]}>
+                <mesh material={body} castShadow>
+                  <sphereGeometry args={[0.11, 14, 12]} />
+                </mesh>
+              </group>
+              <group name="BindArmR" position={[-0.22, 1.42, 0.02]}>
+                <mesh material={body} castShadow>
+                  <sphereGeometry args={[0.11, 14, 12]} />
+                </mesh>
+              </group>
+              <mesh material={trim} position={[0, 0.98, 0.02]} castShadow>
+                <boxGeometry args={[sx + 0.02, 0.06, sz * 0.5]} />
+              </mesh>
+              <mesh material={body} position={[0, 1.7, 0]} castShadow>
+                <sphereGeometry args={[0.13, 16, 12]} />
+              </mesh>
+              <mesh material={trim} position={[0, 1.66, 0.08]} castShadow>
+                <boxGeometry args={[0.16, 0.08, 0.1]} />
+              </mesh>
+            </>
+          )}
+        </group>
+      );
+    case "boots":
+      return (
+        <group>
+          <group name="BindLegL" position={[0.09, 0.94, 0]}>
+            <mesh material={body} position={[0, -0.72, 0]} castShadow>
+              <cylinderGeometry args={[sx * 0.28, sx * 0.3, sy * 0.72, 16]} />
+            </mesh>
+            {detail && (
+              <>
+                <mesh material={trim} position={[0, -0.91, 0.04]} castShadow>
+                  <boxGeometry args={[sx * 0.56, 0.06, sz * 0.72]} />
+                </mesh>
+                <mesh material={body} position={[0, -0.86, 0.08]} castShadow>
+                  <boxGeometry args={[sx * 0.48, 0.1, sz * 0.44]} />
+                </mesh>
+              </>
+            )}
+          </group>
+          <group name="BindLegR" position={[-0.09, 0.94, 0]}>
+            <mesh material={body} position={[0, -0.72, 0]} castShadow>
+              <cylinderGeometry args={[sx * 0.28, sx * 0.3, sy * 0.72, 16]} />
+            </mesh>
+            {detail && (
+              <>
+                <mesh material={trim} position={[0, -0.91, 0.04]} castShadow>
+                  <boxGeometry args={[sx * 0.56, 0.06, sz * 0.72]} />
+                </mesh>
+                <mesh material={body} position={[0, -0.86, 0.08]} castShadow>
+                  <boxGeometry args={[sx * 0.48, 0.1, sz * 0.44]} />
+                </mesh>
+              </>
+            )}
+          </group>
         </group>
       );
     default:

@@ -1,15 +1,19 @@
 import type {
   AssetSpec,
+  Bind,
   CatalogItem,
   Engine,
   Family,
   Job,
   KitTicket,
+  Line,
   MaterialSlot,
   MeshStats,
   QcCheck,
+  Rig,
   Style,
 } from "./types";
+import { isWardrobe, namePrefix } from "./types";
 
 export function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -40,6 +44,11 @@ const FAMILY_CODE: Record<Family, string> = {
   environment: "Panel",
   organic: "Form",
   machine: "Valve",
+  shirt: "Shirt",
+  pants: "Pants",
+  cloak: "Cloak",
+  armor: "Plate",
+  boots: "Boot",
 };
 
 const STYLE_CODE: Record<Style, string> = {
@@ -59,6 +68,11 @@ export const POLY_DEFAULT: Record<Family, number> = {
   environment: 2400,
   organic: 3200,
   machine: 2600,
+  shirt: 2400,
+  pants: 2600,
+  cloak: 3200,
+  armor: 3800,
+  boots: 2200,
 };
 
 const PALETTES: Record<Style, MaterialSlot[][]> = {
@@ -114,6 +128,59 @@ const PALETTES: Record<Style, MaterialSlot[][]> = {
   ],
 };
 
+const WARDROBE_PALETTES: Record<Style, MaterialSlot[][]> = {
+  "hard-surface": [
+    [
+      { name: "Plate_Steel", hex: "#8a9098", metal: 0.72, rough: 0.32 },
+      { name: "Padding_Dark", hex: "#2a2624", metal: 0.0, rough: 0.78 },
+    ],
+    [
+      { name: "Alloy_Bone", hex: "#c9c4b8", metal: 0.55, rough: 0.36 },
+      { name: "Strap_Carbon", hex: "#1c1e22", metal: 0.08, rough: 0.7 },
+    ],
+  ],
+  stylized: [
+    [
+      { name: "Cloth_Sage", hex: "#6b8f71", metal: 0.0, rough: 0.78 },
+      { name: "Trim_Bone", hex: "#e4d7b8", metal: 0.05, rough: 0.6 },
+    ],
+    [
+      { name: "Cloth_Slate", hex: "#5d6f84", metal: 0.0, rough: 0.8 },
+      { name: "Accent_Clay", hex: "#c48a6a", metal: 0.04, rough: 0.55 },
+    ],
+  ],
+  medieval: [
+    [
+      { name: "Wool_Umber", hex: "#5c4638", metal: 0.0, rough: 0.88 },
+      { name: "Brass_Clasp", hex: "#b08a4a", metal: 0.78, rough: 0.36 },
+    ],
+    [
+      { name: "Linen_Bone", hex: "#d4c4a8", metal: 0.0, rough: 0.82 },
+      { name: "Leather_Cord", hex: "#3d2a22", metal: 0.0, rough: 0.86 },
+    ],
+  ],
+  industrial: [
+    [
+      { name: "Canvas_Grey", hex: "#6a6660", metal: 0.0, rough: 0.8 },
+      { name: "Buckle_Steel", hex: "#7a8088", metal: 0.65, rough: 0.4 },
+    ],
+    [
+      { name: "Oilskin", hex: "#3a3c38", metal: 0.08, rough: 0.55 },
+      { name: "Hazard_Tape", hex: "#b9a27a", metal: 0.05, rough: 0.5 },
+    ],
+  ],
+  "low-poly": [
+    [
+      { name: "Flat_Cloth", hex: "#8a7a6a", metal: 0.0, rough: 0.92 },
+      { name: "Flat_Trim", hex: "#d4c8b4", metal: 0.0, rough: 0.88 },
+    ],
+    [
+      { name: "Flat_Ink", hex: "#3e4650", metal: 0.0, rough: 0.9 },
+      { name: "Flat_Rust", hex: "#a07058", metal: 0.05, rough: 0.85 },
+    ],
+  ],
+};
+
 const SIZE: Record<Family, [number, number, number]> = {
   crate: [1.1, 0.85, 0.9],
   barrel: [0.7, 1.15, 0.7],
@@ -123,6 +190,11 @@ const SIZE: Record<Family, [number, number, number]> = {
   environment: [2.0, 2.4, 0.18],
   organic: [1.1, 0.7, 0.95],
   machine: [0.85, 0.9, 0.85],
+  shirt: [0.48, 0.7, 0.3],
+  pants: [0.38, 0.92, 0.28],
+  cloak: [0.72, 1.38, 0.38],
+  armor: [0.52, 0.72, 0.34],
+  boots: [0.3, 0.34, 0.32],
 };
 
 export const KITS: KitTicket[] = [
@@ -130,6 +202,7 @@ export const KITS: KitTicket[] = [
     id: "scifi-corridor",
     name: "Sci-fi corridor",
     blurb: "Wall panel, armored crate, fuel drum, ceiling valve.",
+    line: "prop",
     jobs: [
       {
         prompt: "Corridor wall panel with conduit and a warning stripe",
@@ -157,6 +230,7 @@ export const KITS: KitTicket[] = [
     id: "tavern",
     name: "Medieval tavern",
     blurb: "Cask, oak chair, wall panel, hanging blade.",
+    line: "prop",
     jobs: [
       {
         prompt: "Iron-banded oak cask for a tavern cellar",
@@ -184,6 +258,7 @@ export const KITS: KitTicket[] = [
     id: "yard",
     name: "Industrial yard",
     blurb: "Shipping crate, valve, rock, pump module.",
+    line: "prop",
     jobs: [
       {
         prompt: "Weathered shipping crate with strap bands",
@@ -207,7 +282,71 @@ export const KITS: KitTicket[] = [
       },
     ],
   },
+  {
+    id: "ranger",
+    name: "Ranger kit",
+    blurb: "Linen shirt, wool pants, travel cloak, leather boots.",
+    line: "wardrobe",
+    jobs: [
+      {
+        prompt: "Travel linen shirt with rolled cuffs and a laced collar",
+        family: "shirt",
+        style: "medieval",
+      },
+      {
+        prompt: "Wool trousers with a leather belt and knee patches",
+        family: "pants",
+        style: "medieval",
+      },
+      {
+        prompt: "Wool travel cloak with a hood and a brass clasp",
+        family: "cloak",
+        style: "medieval",
+      },
+      {
+        prompt: "Pair of mid-calf leather boots with a folded cuff",
+        family: "boots",
+        style: "medieval",
+      },
+    ],
+  },
+  {
+    id: "plate",
+    name: "Plate harness",
+    blurb: "Cuirass, padded shirt, greaves as boots, short cloak.",
+    line: "wardrobe",
+    jobs: [
+      {
+        prompt: "Steel cuirass with pauldrons and a closed helm",
+        family: "armor",
+        style: "hard-surface",
+      },
+      {
+        prompt: "Padded arming shirt under plate, quilted",
+        family: "shirt",
+        style: "medieval",
+      },
+      {
+        prompt: "Steel sabatons with shin greaves, mirrored pair",
+        family: "boots",
+        style: "hard-surface",
+      },
+      {
+        prompt: "Short shoulder cloak, heavy wool, iron brooch",
+        family: "cloak",
+        style: "medieval",
+      },
+    ],
+  },
 ];
+
+export function kitsFor(line: Line) {
+  return KITS.filter((k) => k.line === line);
+}
+
+export function maxInfluences(engine: Engine) {
+  return engine === "unreal" ? 8 : 4;
+}
 
 export function buildLocalSpec(input: {
   prompt: string;
@@ -216,12 +355,15 @@ export function buildLocalSpec(input: {
   engine: Engine;
   polyTarget: number;
   seed?: number;
+  rig?: Rig;
+  bind?: Bind;
 }): AssetSpec {
   const seed = input.seed ?? hashString(`${input.prompt}|${input.family}|${input.style}`);
   const rng = mulberry32(seed);
   const n = (seed % 87) + 12;
-  const objectName = `SM_${STYLE_CODE[input.style]}${FAMILY_CODE[input.family]}_${String(n).padStart(2, "0")}`;
-  const palettes = PALETTES[input.style];
+  const prefix = namePrefix(input.family);
+  const objectName = `${prefix}${STYLE_CODE[input.style]}${FAMILY_CODE[input.family]}_${String(n).padStart(2, "0")}`;
+  const palettes = isWardrobe(input.family) ? WARDROBE_PALETTES[input.style] : PALETTES[input.style];
   const materials = palettes[seed % palettes.length]!.map((m) => ({ ...m }));
   const base = SIZE[input.family];
   const jitter = 0.08 + rng() * 0.12;
@@ -231,6 +373,10 @@ export function buildLocalSpec(input: {
     round3(base[2] * (0.92 + rng() * jitter)),
   ];
   const displayName = titleFromPrompt(input.prompt, input.family);
+  const wardrobe = isWardrobe(input.family);
+  const rig: Rig | undefined = wardrobe ? (input.rig ?? "mixamo") : undefined;
+  const bind: Bind | undefined = wardrobe ? (input.bind ?? "skinned") : undefined;
+  const inf = maxInfluences(input.engine);
 
   return {
     objectName,
@@ -242,14 +388,27 @@ export function buildLocalSpec(input: {
     scaleMeters,
     polyTarget: input.polyTarget,
     materials,
-    notes: noteFor(input.family, input.style, input.engine),
-    qc: [
-      "Origin at bottom center",
-      "1 blender unit = 1 meter",
-      "Transforms applied before export",
-      `${input.engine} packet · ${formatFor(input.engine)}`,
-      "Material count ≤ 3",
-    ],
+    notes: noteFor(input.family, input.style, input.engine, rig, bind),
+    qc: wardrobe
+      ? [
+          "Origin at armature root (between feet)",
+          "Fitted to 180cm T-pose jig",
+          bind === "cache"
+            ? "Alembic cache — do not skin a sim"
+            : `${rig} bind · ≤${inf} influences · EveryWear weights`,
+          "SK_ skinned name · thickness so body does not clip",
+          `${input.engine} packet · ${formatFor(input.engine)}`,
+          "Material count ≤ 3",
+        ]
+      : [
+          "Origin at bottom center",
+          "1 blender unit = 1 meter",
+          "Transforms applied before export",
+          `${input.engine} packet · ${formatFor(input.engine)}`,
+          "Material count ≤ 3",
+        ],
+    rig,
+    bind,
   };
 }
 
@@ -267,7 +426,7 @@ export function mergeAiSpec(
       : local.scaleMeters;
   const objectName =
     typeof ai.objectName === "string" && /^[A-Za-z][A-Za-z0-9_]{2,47}$/.test(ai.objectName)
-      ? ai.objectName
+      ? enforcePrefix(ai.objectName, local.family)
       : local.objectName;
 
   return {
@@ -288,6 +447,8 @@ export function mergeAiSpec(
         ? ai.notes.trim().slice(0, 280)
         : local.notes,
     qc: Array.isArray(ai.qc) && ai.qc.length ? ai.qc.map(String).slice(0, 8) : local.qc,
+    rig: local.rig,
+    bind: local.bind,
   };
 }
 
@@ -295,24 +456,29 @@ export function runQc(spec: AssetSpec, stats: MeshStats | null): QcCheck[] {
   const tris = stats?.tris ?? 0;
   const budget = spec.polyTarget;
   const over = tris > budget * 1.15;
+  const wardrobe = isWardrobe(spec.family);
+  const prefix = namePrefix(spec.family);
+  const [sx, sy, sz] = spec.scaleMeters;
   return [
     {
       id: "name",
       label: "Naming",
-      pass: spec.objectName.startsWith("SM_"),
+      pass: spec.objectName.startsWith(prefix),
       detail: spec.objectName,
     },
     {
       id: "origin",
       label: "Origin",
       pass: true,
-      detail: "Bottom center, applied",
+      detail: wardrobe ? "Armature root, between feet" : "Bottom center, applied",
     },
     {
-      id: "scale",
-      label: "Scale",
-      pass: true,
-      detail: `${spec.scaleMeters[0].toFixed(2)} × ${spec.scaleMeters[1].toFixed(2)} × ${spec.scaleMeters[2].toFixed(2)} m`,
+      id: "fit",
+      label: wardrobe ? "Fit" : "Scale",
+      pass: wardrobe ? sy < 2.2 && sy > 0.12 : true,
+      detail: wardrobe
+        ? `180cm jig · ${sx.toFixed(2)} × ${sy.toFixed(2)} × ${sz.toFixed(2)} m hull`
+        : `${sx.toFixed(2)} × ${sy.toFixed(2)} × ${sz.toFixed(2)} m`,
     },
     {
       id: "poly",
@@ -334,6 +500,19 @@ export function runQc(spec: AssetSpec, stats: MeshStats | null): QcCheck[] {
       pass: true,
       detail: formatFor(spec.engine),
     },
+    ...(wardrobe
+      ? [
+          {
+            id: "bind",
+            label: spec.bind === "cache" ? "MD cache" : "Animator bind",
+            pass: Boolean(spec.rig),
+            detail:
+              spec.bind === "cache"
+                ? "Alembic geometry cache · not skinned"
+                : `${spec.rig ?? "mixamo"} · ≤${maxInfluences(spec.engine)} inf · T-pose`,
+          },
+        ]
+      : []),
   ];
 }
 
@@ -351,13 +530,13 @@ export function starterCatalog(): CatalogItem[] {
       style: "hard-surface" as const,
     },
     {
-      prompt: "Iron-banded oak cask",
-      family: "barrel" as const,
+      prompt: "Wool travel cloak with a brass clasp",
+      family: "cloak" as const,
       style: "medieval" as const,
     },
     {
-      prompt: "Bolted pump housing",
-      family: "module" as const,
+      prompt: "Steel cuirass with pauldrons",
+      family: "armor" as const,
       style: "hard-surface" as const,
     },
   ];
@@ -391,6 +570,11 @@ export function estimateStats(spec: AssetSpec): MeshStats {
     environment: 720,
     organic: 2100,
     machine: 1540,
+    shirt: 1420,
+    pants: 1580,
+    cloak: 1860,
+    armor: 2140,
+    boots: 1320,
   };
   const tris = Math.round(familyBias[spec.family] * (0.75 + (spec.seed % 40) / 80) * (0.85 + vol * 0.08));
   return {
@@ -398,6 +582,12 @@ export function estimateStats(spec: AssetSpec): MeshStats {
     verts: Math.round(tris * 0.62),
     materials: spec.materials.length,
   };
+}
+
+function enforcePrefix(name: string, family: Family): string {
+  const want = namePrefix(family);
+  if (name.startsWith("SM_") || name.startsWith("SK_")) return want + name.slice(3);
+  return want + name;
 }
 
 function sanitizeMat(m: MaterialSlot): MaterialSlot {
@@ -422,7 +612,13 @@ function titleFromPrompt(prompt: string, family: Family): string {
   return `Studio ${FAMILY_CODE[family]}`;
 }
 
-function noteFor(family: Family, style: Style, engine: Engine): string {
+function noteFor(family: Family, style: Style, engine: Engine, rig?: Rig, bind?: Bind): string {
+  if (isWardrobe(family)) {
+    if (bind === "cache") {
+      return `${style} ${family} as Marvelous animation cache for ${engine}. Sim on the animated ${rig ?? "mixamo"} avatar, export Alembic, never skin a cache.`;
+    }
+    return `${style} ${family} fitted to the 180cm T-pose jig, ${rig ?? "mixamo"} bind for ${engine}. EveryWear path: shrinkwrap, solidify 6mm, copy body weights, ≤${maxInfluences(engine)} influences.`;
+  }
   return `${style} ${family} milled for ${engine}. Keep origin at the contact patch; do not freeze scale until QC.`;
 }
 
